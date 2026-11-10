@@ -122,7 +122,7 @@ dl.rows dd .sub { display: block; color: var(--muted); font-size: 0.92rem; }
 footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--rule); padding-top: 16px; }
 
 .wavefield { margin: 0 0 8px; }
-.wavefield canvas { display: block; width: 100%; max-width: 100%; aspect-ratio: 480 / 132; border-radius: 6px; background: #05070a; }
+.wavefield canvas { display: block; width: 100%; max-width: 100%; height: auto; aspect-ratio: 1200 / 440; border-radius: 8px; background: #05070c; }
 .wavefield figcaption, .art-pair figcaption { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); margin-top: 6px; }
 .art-pair { margin: 12px 0 6px; max-width: 300px; }
 .art-pair .imgs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -157,8 +157,8 @@ footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--ru
   </aside>
 
   <main>
-    <figure class="wavefield" aria-label="Animated simulation of light from a phased array of point sources">
-      <canvas id="wavefield" width="480" height="132"></canvas>
+    <figure class="wavefield" role="img" aria-label="Illustration: a laser beam passes through a lens and a prism, splits into a spectrum, crosses three diffractive layers, and lands on a grid of red and blue detectors">
+      <canvas id="opticsArt" width="1200" height="440"></canvas>
     </figure>
 
     <section class="about" aria-label="About">
@@ -289,47 +289,159 @@ document.getElementById('copy-email').addEventListener('click', function () {
 </script>
 <script>
 (function () {
-  var cv = document.getElementById('wavefield');
+  var cv = document.getElementById('opticsArt');
   if (!cv || !cv.getContext) return;
-  var ctx = cv.getContext('2d'), W = cv.width, H = cv.height;
-  var img = ctx.createImageData(W, H), px = img.data;
-  // 1 px = 65 nm, so lambda = 520 nm = 8 px
-  var k = 2 * Math.PI / 8, N = 9, pitch = 11, x0 = 6;
-  var ys = [], re = [], im = [], i, j, x, y;
-  for (j = 0; j < N; j++) ys.push(H / 2 + (j - (N - 1) / 2) * pitch);
-  for (j = 0; j < N; j++) {
-    var R = new Float32Array(W * H), I = new Float32Array(W * H);
-    for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
-      var dx = x - x0, dy = y - ys[j], r = Math.sqrt(dx * dx + dy * dy) + 1, a = 1 / Math.sqrt(r);
-      if (dx < 0) a = 0; else a *= Math.sqrt(dx + 4) / 3;
-      R[y * W + x] = a * Math.cos(k * r); I[y * W + x] = a * Math.sin(k * r);
-    }
-    re.push(R); im.push(I);
+  var W = 1200, H = 440, dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = W * dpr; cv.height = H * dpr;
+  var out = cv.getContext('2d');
+  var base = document.createElement('canvas'); base.width = W * dpr; base.height = H * dpr;
+  var g = base.getContext('2d'); g.scale(dpr, dpr);
+  var seed = 11; function rnd() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
+  var SPEC = ['#ff2d3a', '#ff8c1a', '#ffe14a', '#45ff7a', '#22e3ff', '#3a6dff', '#a14bff'];
+  var beamY = 222, i, j, k;
+
+  function glow(pts, color, w, blur, alpha) {
+    g.save(); g.globalCompositeOperation = 'lighter'; g.globalAlpha = alpha == null ? 1 : alpha;
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (var n = 1; n < pts.length; n++) g.lineTo(pts[n][0], pts[n][1]);
+    g.strokeStyle = color; g.lineWidth = w; g.shadowColor = color; g.shadowBlur = blur; g.stroke();
+    g.shadowBlur = 0; g.strokeStyle = 'rgba(255,255,255,0.75)'; g.lineWidth = Math.max(0.6, w * 0.3); g.stroke();
+    g.restore();
   }
-  var cr = new Float32Array(N), ci = new Float32Array(N);
-  function frame(t) {
-    var steer = Math.sin(t * 0.00035) * 0.85;           // phase gradient across the array
-    for (j = 0; j < N; j++) { var p = -steer * j * Math.PI * 0.5; cr[j] = Math.cos(p); ci[j] = Math.sin(p); }
-    var norm = 1 / (N * 0.42);
-    for (i = 0; i < W * H; i++) {
-      var fr = 0, fi = 0;
-      for (j = 0; j < N; j++) { var a = re[j][i], b = im[j][i]; fr += a * cr[j] - b * ci[j]; fi += a * ci[j] + b * cr[j]; }
-      var v = Math.min(1, Math.sqrt((fr * fr + fi * fi)) * norm), q = i * 4;
-      v = Math.pow(v, 1.15);
-      px[q] = Math.min(255, 255 * Math.max(0, v - 0.55) * 2.2);   // black -> 520 nm green -> white
-      px[q + 1] = Math.min(255, 290 * v);
-      px[q + 2] = Math.min(255, 255 * Math.max(0, v - 0.45) * 1.4 + 18 * v);
-      px[q + 3] = 255;
-    }
-    ctx.putImageData(img, 0, 0);
+  function dot(x, y, r, color, a) {
+    g.save(); g.globalCompositeOperation = 'lighter';
+    var gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, 'rgba(255,255,255,' + (a || 1) + ')'); gr.addColorStop(0.25, color); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); g.restore();
   }
-  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // background
+  var bg = g.createRadialGradient(620, 200, 40, 620, 220, 760);
+  bg.addColorStop(0, '#0d1838'); bg.addColorStop(0.55, '#070c1f'); bg.addColorStop(1, '#03050c');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  for (i = 0; i < 170; i++) { var sx = rnd() * W, sy = rnd() * H * 0.78, sr = rnd() * 1.1 + 0.2;
+    g.fillStyle = 'rgba(180,200,255,' + (0.15 + rnd() * 0.5) + ')'; g.beginPath(); g.arc(sx, sy, sr, 0, 7); g.fill(); }
+
+  // perspective floor grid
+  g.save(); g.strokeStyle = 'rgba(80,140,255,0.22)'; g.lineWidth = 1;
+  var hz = 338, vx = 600;
+  for (i = -16; i <= 16; i++) { g.beginPath(); g.moveTo(vx + i * 14, hz); g.lineTo(vx + i * 150, H); g.stroke(); }
+  for (i = 0; i < 9; i++) { var yy = hz + Math.pow(i / 8, 1.8) * (H - hz); g.globalAlpha = 0.4 + i * 0.07; g.beginPath(); g.moveTo(0, yy); g.lineTo(W, yy); g.stroke(); }
+  g.restore();
+  var fog = g.createLinearGradient(0, hz - 10, 0, hz + 30); fog.addColorStop(0, 'rgba(7,12,31,0)'); fog.addColorStop(0.5, 'rgba(60,110,255,0.10)'); fog.addColorStop(1, 'rgba(7,12,31,0)');
+  g.fillStyle = fog; g.fillRect(0, hz - 10, W, 40);
+
+  // Airy pattern (upper left)
+  g.save(); g.globalCompositeOperation = 'lighter';
+  for (i = 9; i >= 1; i--) { g.strokeStyle = 'rgba(120,170,255,' + (0.05 + 0.25 / i) + ')'; g.lineWidth = i === 1 ? 5 : 2;
+    g.beginPath(); g.arc(165, 86, i * 7.5, 0, Math.PI * 2); g.stroke(); }
+  g.restore(); dot(165, 86, 16, 'rgba(160,200,255,0.9)');
+
+  // ring resonator on the floor
+  g.save(); g.translate(690, 386); g.scale(1, 0.32);
+  for (i = 0; i < 3; i++) { g.globalCompositeOperation = 'lighter'; g.strokeStyle = 'rgba(255,170,60,' + (0.55 - i * 0.15) + ')';
+    g.shadowColor = '#ff9a2e'; g.shadowBlur = 18; g.lineWidth = 6 - i * 2; g.beginPath(); g.arc(0, 0, 70 + i * 3, 0, Math.PI * 2); g.stroke(); }
+  g.restore();
+  glow([[560, 410], [820, 410]], 'rgba(255,160,50,0.9)', 2.5, 12, 0.8);
+
+  // laser head
+  g.save();
+  var lg = g.createLinearGradient(0, 196, 0, 248); lg.addColorStop(0, '#3a4766'); lg.addColorStop(0.5, '#1a2236'); lg.addColorStop(1, '#0c111d');
+  g.fillStyle = lg; g.strokeStyle = 'rgba(255,196,90,0.85)'; g.lineWidth = 2;
+  g.beginPath(); g.roundRect ? g.roundRect(46, 198, 96, 48, 6) : g.rect(46, 198, 96, 48); g.fill(); g.stroke();
+  for (i = 0; i < 5; i++) { g.fillStyle = 'rgba(255,196,90,0.35)'; g.fillRect(58 + i * 12, 206, 6, 32); }
+  g.restore();
+  dot(142, beamY, 22, 'rgba(255,255,255,0.8)');
+
+  // lens
+  var lx = 262;
+  glow([[142, beamY], [lx, beamY]], 'rgba(220,235,255,0.9)', 5, 18);
+  g.save();
+  var lens = g.createLinearGradient(lx - 22, 0, lx + 22, 0); lens.addColorStop(0, 'rgba(120,200,255,0.12)'); lens.addColorStop(0.5, 'rgba(200,235,255,0.32)'); lens.addColorStop(1, 'rgba(120,200,255,0.12)');
+  g.beginPath(); g.moveTo(lx, beamY - 82); g.quadraticCurveTo(lx + 34, beamY, lx, beamY + 82); g.quadraticCurveTo(lx - 34, beamY, lx, beamY - 82);
+  g.fillStyle = lens; g.fill(); g.strokeStyle = 'rgba(200,232,255,0.75)'; g.lineWidth = 1.5; g.shadowColor = '#8fd0ff'; g.shadowBlur = 10; g.stroke();
+  g.beginPath(); g.moveTo(lx - 4, beamY - 60); g.quadraticCurveTo(lx + 8, beamY - 20, lx + 2, beamY + 10); g.strokeStyle = 'rgba(255,255,255,0.45)'; g.lineWidth = 2; g.shadowBlur = 0; g.stroke();
+  g.restore();
+
+  // prism
+  var A = [388, 305], B = [478, 135], C = [568, 305], entry = [432, beamY], exit = [529, 232];
+  glow([[lx, beamY], entry], 'rgba(230,240,255,0.95)', 4.5, 18);
+  g.save();
+  var pg = g.createLinearGradient(388, 300, 568, 140); pg.addColorStop(0, 'rgba(110,170,255,0.10)'); pg.addColorStop(0.5, 'rgba(210,230,255,0.26)'); pg.addColorStop(1, 'rgba(160,120,255,0.12)');
+  g.beginPath(); g.moveTo(A[0], A[1]); g.lineTo(B[0], B[1]); g.lineTo(C[0], C[1]); g.closePath(); g.fillStyle = pg; g.fill();
+  g.strokeStyle = 'rgba(215,232,255,0.85)'; g.lineWidth = 1.6; g.shadowColor = '#9cc8ff'; g.shadowBlur = 14; g.stroke(); g.restore();
+  glow([entry, exit], 'rgba(255,255,255,0.8)', 3.5, 10, 0.75);
+
+  // diffractive layers
+  var layers = [770, 845, 920];
+  function panel(x) {
+    var tl = [x, 112], tr = [x + 36, 94], br = [x + 36, 330], bl = [x, 350];
+    g.save(); g.beginPath(); g.moveTo(tl[0], tl[1]); g.lineTo(tr[0], tr[1]); g.lineTo(br[0], br[1]); g.lineTo(bl[0], bl[1]); g.closePath();
+    g.fillStyle = 'rgba(70,110,220,0.10)'; g.fill(); g.clip();
+    for (var yy = 90; yy < 352; yy += 7) for (var xx = x; xx < x + 36; xx += 6) {
+      var h = (Math.sin(xx * 0.21 + yy * 0.07) + Math.sin(yy * 0.13 - xx * 0.05) + rnd() * 0.9) * 70 + 200;
+      g.fillStyle = 'hsla(' + h.toFixed(0) + ',90%,62%,' + (0.10 + rnd() * 0.22).toFixed(2) + ')'; g.fillRect(xx, yy, 5, 6); }
+    g.restore();
+    g.save(); g.beginPath(); g.moveTo(tl[0], tl[1]); g.lineTo(tr[0], tr[1]); g.lineTo(br[0], br[1]); g.lineTo(bl[0], bl[1]); g.closePath();
+    g.strokeStyle = 'rgba(190,220,255,0.7)'; g.lineWidth = 1.4; g.shadowColor = '#7fb4ff'; g.shadowBlur = 12; g.stroke(); g.restore();
+  }
+  var segs = [];
+  // spectrum fan from prism to first layer
+  var hits = [];
+  for (k = 0; k < SPEC.length; k++) {
+    var ang = -0.30 + k * 0.085, y1 = exit[1] + Math.tan(ang) * (layers[0] + 18 - exit[0]);
+    glow([exit, [layers[0] + 18, y1]], SPEC[k], 3, 16, 0.95);
+    segs.push([exit, [layers[0] + 18, y1], SPEC[k]]); hits.push(y1);
+  }
+  panel(layers[0]);
+  // scattering between layers
+  var prev = hits.map(function (y) { return [layers[0] + 18, y]; });
+  for (var L = 1; L < layers.length; L++) {
+    var next = []; for (i = 0; i < 9; i++) next.push([layers[L] + 18, 128 + i * 25 + (rnd() - 0.5) * 10]);
+    for (i = 0; i < prev.length; i++) for (j = 0; j < next.length; j++) if (rnd() < 0.45) {
+      var col = 'hsla(' + (215 + rnd() * 60).toFixed(0) + ',95%,65%,1)';
+      glow([prev[i], next[j]], col, 1.1, 8, 0.35); if (rnd() < 0.25) segs.push([prev[i], next[j], col]); }
+    panel(layers[L]); prev = next;
+  }
+  // detector panel
+  var dtl = [1048, 118], dtr = [1150, 92], dbr = [1150, 352], dbl = [1048, 336];
+  g.save(); g.beginPath(); g.moveTo(dtl[0], dtl[1]); g.lineTo(dtr[0], dtr[1]); g.lineTo(dbr[0], dbr[1]); g.lineTo(dbl[0], dbl[1]); g.closePath();
+  g.fillStyle = 'rgba(20,30,60,0.55)'; g.fill(); g.strokeStyle = 'rgba(190,215,255,0.65)'; g.lineWidth = 1.4; g.shadowColor = '#6f9cff'; g.shadowBlur = 10; g.stroke(); g.restore();
+  var dets = [];
+  for (i = 0; i < 6; i++) for (j = 0; j < 2; j++) {
+    var dx = 1074 + j * 50, dy = 140 + i * 36 - j * 12;
+    dets.push([dx, dy, (i + j) % 2 ? '#3d7bff' : '#ff3b45']);
+  }
+  for (i = 0; i < prev.length; i++) for (j = 0; j < dets.length; j++) if (rnd() < 0.5) {
+    var c2 = 'hsla(' + (205 + rnd() * 70).toFixed(0) + ',95%,66%,1)';
+    glow([prev[i], [dets[j][0], dets[j][1]]], c2, 1, 8, 0.3); if (rnd() < 0.3) segs.push([prev[i], [dets[j][0], dets[j][1]], c2]); }
+  dets.forEach(function (d) {
+    g.save(); g.strokeStyle = d[2]; g.globalAlpha = 0.55; g.lineWidth = 1.2; g.beginPath(); g.arc(d[0], d[1], 12, 0, 7); g.stroke(); g.restore();
+    dot(d[0], d[1], 15, d[2]);
+  });
+  // vignette
+  var vg = g.createRadialGradient(W / 2, H / 2, H * 0.4, W / 2, H / 2, W * 0.7); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.55)');
+  g.fillStyle = vg; g.fillRect(0, 0, W, H);
+
+  // photons travelling along the light paths
+  segs.unshift([[142, beamY], [lx, beamY], '#ffffff'], [[lx, beamY], entry, '#ffffff']);
+  var ph = []; for (i = 0; i < 46; i++) ph.push({ s: Math.floor(rnd() * segs.length), t: rnd(), v: 0.004 + rnd() * 0.006 });
+  function draw() {
+    out.setTransform(1, 0, 0, 1, 0, 0); out.drawImage(base, 0, 0); out.setTransform(dpr, 0, 0, dpr, 0, 0);
+    out.globalCompositeOperation = 'lighter';
+    ph.forEach(function (p) {
+      var sg = segs[p.s], x = sg[0][0] + (sg[1][0] - sg[0][0]) * p.t, y = sg[0][1] + (sg[1][1] - sg[0][1]) * p.t;
+      var gr = out.createRadialGradient(x, y, 0, x, y, 6); gr.addColorStop(0, 'rgba(255,255,255,0.95)'); gr.addColorStop(0.4, sg[2]); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      out.fillStyle = gr; out.beginPath(); out.arc(x, y, 6, 0, 7); out.fill();
+    });
+    out.globalCompositeOperation = 'source-over';
+  }
+  function step() { ph.forEach(function (p) { p.t += p.v; if (p.t > 1) { p.t = 0; p.s = Math.floor(Math.random() * segs.length); } }); }
+  draw();
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   var visible = true;
   if ('IntersectionObserver' in window) new IntersectionObserver(function (e) { visible = e[0].isIntersecting; }).observe(cv);
-  frame(900);
-  if (reduce) return;
-  var last = 0;
-  (function loop(t) { if (visible && !document.hidden && t - last > 40) { frame(t); last = t; } requestAnimationFrame(loop); })(0);
+  (function loop() { if (visible && !document.hidden) { step(); draw(); } requestAnimationFrame(loop); })();
 })();
 </script>
 </body>
