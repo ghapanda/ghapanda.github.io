@@ -124,10 +124,10 @@ footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--ru
 .wavefield { margin: 0 0 8px; }
 .wavefield canvas { display: block; width: 100%; max-width: 100%; aspect-ratio: 480 / 132; border-radius: 6px; background: #05070a; }
 .wavefield figcaption, .art-pair figcaption { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); margin-top: 6px; }
-.art-pair { margin: 12px 0 6px; max-width: 400px; }
+.art-pair { margin: 12px 0 6px; max-width: 300px; }
 .art-pair .imgs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .art-pair a { display: block; border-radius: 5px; overflow: hidden; border: 1px solid var(--rule); background: #05070a; }
-.art-pair img { display: block; width: 100%; height: auto; aspect-ratio: 2 / 3; object-fit: cover; transition: transform .3s ease; }
+.art-pair img { display: block; width: 100%; height: auto; aspect-ratio: 762 / 1070; object-fit: cover; transition: transform .3s ease; }
 .art-pair a:hover img { transform: scale(1.02); }
 @media (prefers-reduced-motion: reduce) { .art-pair img { transition: none; } .art-pair a:hover img { transform: none; } }
 </style>
@@ -159,7 +159,6 @@ footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--ru
   <main>
     <figure class="wavefield" aria-label="Animated simulation of light from a phased array of point sources">
       <canvas id="wavefield" width="480" height="132"></canvas>
-      <figcaption>Live simulation: 9 coherent point sources, λ = 520 nm, phases swept to steer the beam</figcaption>
     </figure>
 
     <section class="about" aria-label="About">
@@ -177,11 +176,7 @@ footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--ru
           <p>A hybrid system that pairs a lightweight digital encoder with a spatially multiplexed optical decoder on a programmable spatial light modulator. The experimental system (SLM, 4f relay, camera) reached 97.79% accuracy on facially manipulated deepfakes. Current work uses harmonic encoding to scale from 100 toward 800 parallel videos on an 8-megapixel SLM.</p>
           <span class="tag">eLight 2026 · FiO 2026 · Photonics West 2027</span>
           <figure class="art-pair">
-            <div class="imgs">
-              <a href="deepfake-art-1.jpg" target="_blank" rel="noopener"><img src="deepfake-art-1.jpg" alt="Artwork: many video streams of faces flow into a spatial light modulator, pass through diffractive layers, and land on a panel of paired red and blue detectors" width="768" height="1152" loading="lazy"></a>
-              <a href="deepfake-art-2.jpg" target="_blank" rel="noopener"><img src="deepfake-art-2.jpg" alt="Artwork: spiraling video streams enter a gold-framed SLM; green light passes two diffractive layers and splits onto a grid of red and blue detector pairs" width="768" height="1152" loading="lazy"></a>
-            </div>
-            <figcaption>Video streams encoded on an SLM, decoded in free space onto paired detectors</figcaption>
+            <a href="deepfake-art.jpg" target="_blank" rel="noopener"><img src="deepfake-art.jpg" alt="Artwork: a face assembled from video frames, with video streams flowing into a gold-framed SLM; green light passes two diffractive layers and lands on a curved panel of paired red and blue detectors" width="762" height="1070" loading="lazy"></a>
           </figure>
         </div>
         <div class="project">
