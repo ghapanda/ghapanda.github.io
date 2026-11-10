@@ -120,6 +120,16 @@ dl.rows dd { margin: 0; }
 dl.rows dd .sub { display: block; color: var(--muted); font-size: 0.92rem; }
 
 footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--rule); padding-top: 16px; }
+
+.wavefield { margin: 0 0 8px; }
+.wavefield canvas { display: block; width: 100%; max-width: 100%; aspect-ratio: 480 / 132; border-radius: 6px; background: #05070a; }
+.wavefield figcaption, .art-pair figcaption { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); margin-top: 6px; }
+.art-pair { margin: 12px 0 6px; max-width: 400px; }
+.art-pair .imgs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.art-pair a { display: block; border-radius: 5px; overflow: hidden; border: 1px solid var(--rule); background: #05070a; }
+.art-pair img { display: block; width: 100%; height: auto; aspect-ratio: 2 / 3; object-fit: cover; transition: transform .3s ease; }
+.art-pair a:hover img { transform: scale(1.02); }
+@media (prefers-reduced-motion: reduce) { .art-pair img { transition: none; } .art-pair a:hover img { transform: none; } }
 </style>
 </head>
 <body>
@@ -147,6 +157,11 @@ footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--ru
   </aside>
 
   <main>
+    <figure class="wavefield" aria-label="Animated simulation of light from a phased array of point sources">
+      <canvas id="wavefield" width="480" height="132"></canvas>
+      <figcaption>Live simulation: 9 coherent point sources, λ = 520 nm, phases swept to steer the beam</figcaption>
+    </figure>
+
     <section class="about" aria-label="About">
       <p>I am an undergraduate in ECE at UCLA (B.S. expected June 2027) and a researcher in Professor Aydogan Ozcan’s group, where I have worked since June 2024.</p>
       <p>My work sits between optics and learning: diffractive optical processors that carry out inference in free space, and deep-learning reconstruction for label-free and fluorescence lifetime microscopy. I am applying to PhD programs for Fall 2027.</p>
@@ -161,6 +176,13 @@ footer { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--ru
           <h4>Multiplexed optical neural computing for deepfake video detection</h4>
           <p>A hybrid system that pairs a lightweight digital encoder with a spatially multiplexed optical decoder on a programmable spatial light modulator. The experimental system (SLM, 4f relay, camera) reached 97.79% accuracy on facially manipulated deepfakes. Current work uses harmonic encoding to scale from 100 toward 800 parallel videos on an 8-megapixel SLM.</p>
           <span class="tag">eLight 2026 · FiO 2026 · Photonics West 2027</span>
+          <figure class="art-pair">
+            <div class="imgs">
+              <a href="deepfake-art-1.jpg" target="_blank" rel="noopener"><img src="deepfake-art-1.jpg" alt="Artwork: many video streams of faces flow into a spatial light modulator, pass through diffractive layers, and land on a panel of paired red and blue detectors" width="768" height="1152" loading="lazy"></a>
+              <a href="deepfake-art-2.jpg" target="_blank" rel="noopener"><img src="deepfake-art-2.jpg" alt="Artwork: spiraling video streams enter a gold-framed SLM; green light passes two diffractive layers and splits onto a grid of red and blue detector pairs" width="768" height="1152" loading="lazy"></a>
+            </div>
+            <figcaption>Video streams encoded on an SLM, decoded in free space onto paired detectors</figcaption>
+          </figure>
         </div>
         <div class="project">
           <h4>Nonlinear computing with linear diffractive processors</h4>
@@ -269,6 +291,51 @@ document.getElementById('copy-email').addEventListener('click', function () {
   } catch (e) { selectIt(); }
   setTimeout(function () { btn.textContent = 'Copy'; }, 2000);
 });
+</script>
+<script>
+(function () {
+  var cv = document.getElementById('wavefield');
+  if (!cv || !cv.getContext) return;
+  var ctx = cv.getContext('2d'), W = cv.width, H = cv.height;
+  var img = ctx.createImageData(W, H), px = img.data;
+  // 1 px = 65 nm, so lambda = 520 nm = 8 px
+  var k = 2 * Math.PI / 8, N = 9, pitch = 11, x0 = 6;
+  var ys = [], re = [], im = [], i, j, x, y;
+  for (j = 0; j < N; j++) ys.push(H / 2 + (j - (N - 1) / 2) * pitch);
+  for (j = 0; j < N; j++) {
+    var R = new Float32Array(W * H), I = new Float32Array(W * H);
+    for (y = 0; y < H; y++) for (x = 0; x < W; x++) {
+      var dx = x - x0, dy = y - ys[j], r = Math.sqrt(dx * dx + dy * dy) + 1, a = 1 / Math.sqrt(r);
+      if (dx < 0) a = 0; else a *= Math.sqrt(dx + 4) / 3;
+      R[y * W + x] = a * Math.cos(k * r); I[y * W + x] = a * Math.sin(k * r);
+    }
+    re.push(R); im.push(I);
+  }
+  var cr = new Float32Array(N), ci = new Float32Array(N);
+  function frame(t) {
+    var steer = Math.sin(t * 0.00035) * 0.85;           // phase gradient across the array
+    for (j = 0; j < N; j++) { var p = -steer * j * Math.PI * 0.5; cr[j] = Math.cos(p); ci[j] = Math.sin(p); }
+    var norm = 1 / (N * 0.42);
+    for (i = 0; i < W * H; i++) {
+      var fr = 0, fi = 0;
+      for (j = 0; j < N; j++) { var a = re[j][i], b = im[j][i]; fr += a * cr[j] - b * ci[j]; fi += a * ci[j] + b * cr[j]; }
+      var v = Math.min(1, Math.sqrt((fr * fr + fi * fi)) * norm), q = i * 4;
+      v = Math.pow(v, 1.15);
+      px[q] = Math.min(255, 255 * Math.max(0, v - 0.55) * 2.2);   // black -> 520 nm green -> white
+      px[q + 1] = Math.min(255, 290 * v);
+      px[q + 2] = Math.min(255, 255 * Math.max(0, v - 0.45) * 1.4 + 18 * v);
+      px[q + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var visible = true;
+  if ('IntersectionObserver' in window) new IntersectionObserver(function (e) { visible = e[0].isIntersecting; }).observe(cv);
+  frame(900);
+  if (reduce) return;
+  var last = 0;
+  (function loop(t) { if (visible && !document.hidden && t - last > 40) { frame(t); last = t; } requestAnimationFrame(loop); })(0);
+})();
 </script>
 </body>
 </html>
